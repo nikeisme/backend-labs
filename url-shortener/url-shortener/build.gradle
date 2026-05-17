@@ -1,0 +1,30 @@
+plugins {
+    id 'java'
+}
+
+group = 'com.labs'
+version = '1.0-SNAPSHOT'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // Redis 클라이언트
+    implementation 'redis.clients:jedis:5.1.0'
+
+    // MariaDB 드라이버
+    implementation 'org.mariadb.jdbc:mariadb-java-client:3.3.2'
+
+    // 테스트
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.0'
+}
+
+test {
+    useJUnitPlatform()
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+}
