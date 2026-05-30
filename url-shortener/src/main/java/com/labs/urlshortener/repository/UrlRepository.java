@@ -1,20 +1,40 @@
 package com.labs.urlshortener.repository;
 
 import redis.clients.jedis.Jedis;
+import redis.clients.jedis.JedisPool;
+import redis.clients.jedis.JedisPoolConfig;
 
 /*
 * Redis를 저장소로 사용하는 URL 레포지토리
-* 서버 재시작해도 데이터가 유지됨 (In-Memory HashMap과의 차이)
+*
+* [Connection Pool 적용]
+* Jedis 단일 연결 방식은 멀티스레드 환경에서 안전하지 않음
+* JedisPool을 사용해 연결을 재사용하고 동시 요청을 안전하게 처리
+*
+* Spring Data Redis의 RedisTemplate도 내부적으로 이 방식을 사용함
 */
 public class UrlRepository {
 
-    //Jedis : Java에서 Redis에 명령어를 보낼 수 있게 해주는 클라이언트 라이브러리
-    private final Jedis jedis;
+    // 단일 Jedis 인스턴스 대신 Pool 사용
+    private final JedisPool jedisPool;
 
     public UrlRepository(){
-        // Redis 서버 주소와 포트 연결
-        // 로컬에서 기본 포트 (6379)로 실행 중인 Redis 접속
-        this.jedis = new Jedis("localhost",6379);
+
+        JedisPoolConfig poolConfig = new JedisPoolConfig();
+
+        // 최대 연결 수 : 동시에 Redis에 접근할 수 있는 최대 연결 개수
+        poolConfig.setMaxTotal(10);
+
+        // 최대 대기 연결 개수 : Pool에서 놀고 있는 연결 최대 개수
+        poolConfig.setMaxIdle(5);
+
+        // 최소 대기 연결 개수 : 항상 유지할 최소 연결  개수
+        poolConfig.setMinIdle(2);
+
+        // 연결 고갈 시 대기 여부: true면 연결 생길 때까지 대기, false면 즉시 예외
+        poolConfig.setBlockWhenExhausted(true);
+
+        this.jedisPool = new JedisPool(poolConfig,"localhost",6379);
     }
 
     /*
@@ -22,7 +42,9 @@ public class UrlRepository {
     * Redis에 "url:{code}" 키로 저장
     * */
     public void save(String code, String originalUrl){
-        jedis.set("url: " + code,originalUrl);
+        try (Jedis jedis = jedisPool.getResource()){
+            jedis.set("url:" + code,originalUrl);
+        }
     }
 
     /*
@@ -31,7 +53,9 @@ public class UrlRepository {
     * ex ) "reverse : http://www.naver.com" -> "1"
     * */
     public void saveReverse(String originalUrl, String code){
-        jedis.set("reverse: " + originalUrl, code);
+        try (Jedis jedis = jedisPool.getResource()){
+            jedis.set("reverse:" + originalUrl, code);
+        }
     }
 
     /*
@@ -40,7 +64,9 @@ public class UrlRepository {
     * 없으면 null 반환
     * */
     public String findByCode(String code){
-        return jedis.get("url: "+ code);
+        try (Jedis jedis = jedisPool.getResource()){
+            return  jedis.get("url:"+ code);
+        }
     }
 
     /*
@@ -49,7 +75,9 @@ public class UrlRepository {
     * 없으면 null 반환
     * */
     public String findCodeByUrl(String originalUrl){
-        return jedis.get("reverse : " + originalUrl );
+        try (Jedis jedis = jedisPool.getResource()){
+            return jedis.get("reverse:" + originalUrl );
+        }
     }
 
 }
